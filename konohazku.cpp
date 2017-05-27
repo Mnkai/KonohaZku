@@ -7,17 +7,17 @@
 #include <QApplication>
 #include <QClipboard>
 
-#include "kzku.h"
+#include "konohazku.h"
 
 using namespace std;
 
-KZku::KZku(QObject *parent, const QVariantList &args)
+KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
     : Plasma::AbstractRunner(parent, args)
 {
     Q_UNUSED(args);
     
     // General runner configuration
-    setObjectName(QLatin1String("KZku"));
+    setObjectName(QLatin1String("KonohaZku"));
     setHasRunOptions(true);
     setIgnoredTypes(Plasma::RunnerContext::Directory |
                     Plasma::RunnerContext::File |
@@ -32,9 +32,9 @@ KZku::KZku(QObject *parent, const QVariantList &args)
     );
 }
 
-KZku::~KZku() {}
+KonohaZku::~KonohaZku() {}
 
-void KZku::match(Plasma::RunnerContext &context)
+void KonohaZku::match(Plasma::RunnerContext &context)
 {
     if (!context.isValid()) return;
 
@@ -73,7 +73,7 @@ void KZku::match(Plasma::RunnerContext &context)
  * Either some string gets copied to the clipboard, a file/path/URL is being opened, 
  * or a command is being executed.
  */
-void KZku::run(const Plasma::RunnerContext &context, const Plasma::QueryMatch &match)
+void KonohaZku::run(const Plasma::RunnerContext &context, const Plasma::QueryMatch &match)
 {
     Q_UNUSED(context);
 
@@ -99,6 +99,6 @@ void KZku::run(const Plasma::RunnerContext &context, const Plasma::QueryMatch &m
 }
 
 
-K_EXPORT_PLASMA_RUNNER(kzku, KZku)
+K_EXPORT_PLASMA_RUNNER(konohazku, KonohaZku)
 
-#include "kzku.moc"
+#include "konohazku.moc"

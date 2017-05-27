@@ -3,13 +3,13 @@
 
 #include <KRunner/AbstractRunner>
 
-class KZku : public Plasma::AbstractRunner
+class KonohaZku : public Plasma::AbstractRunner
 {
     Q_OBJECT
 
 public:
-    KZku(QObject *parent, const QVariantList &args);
-    ~KZku();
+    KonohaZku(QObject *parent, const QVariantList &args);
+    ~KonohaZku();
 
     void match(Plasma::RunnerContext &);
     void run(const Plasma::RunnerContext &, const Plasma::QueryMatch &);
