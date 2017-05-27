@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <KLocalizedString>
 #include <KConfigCore/KConfig>
 #include <KConfigCore/KConfigGroup>
@@ -9,8 +7,6 @@
 
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 
 #include "konohazku.h"
 
@@ -63,10 +59,10 @@ void KonohaZku::match(Plasma::RunnerContext &context)
   server_addr.sin_port = htons(4000);
   server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-  if ( connect(client_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)))
+  if ( ::connect(client_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1)
     return;
 
-  write(client_socket, tempString.data(), strlen(tempString.data()+1));
+  write(client_socket, tempString.data(), strlen(tempString.data())+1);
   read(client_socket, buff, BUFF_SIZE);
 
   QList <Plasma::QueryMatch> matches;
@@ -75,11 +71,11 @@ void KonohaZku::match(Plasma::RunnerContext &context)
   match.setType(Plasma::QueryMatch::ExactMatch);
   match.setData("zku");
   match.setText(buff);
-  match.setSubtext(tempString.data());
   match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
 
   matches.append(match);
 
+  close(client_socket);
   // Feed the framework with the calculated results
   context.addMatches(matches);
 }
