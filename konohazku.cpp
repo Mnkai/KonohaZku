@@ -7,65 +7,81 @@
 #include <QApplication>
 #include <QClipboard>
 
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
 #include "konohazku.h"
+
+#define  BUFF_SIZE   1024
 
 using namespace std;
 
 KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
     : Plasma::AbstractRunner(parent, args)
 {
-    Q_UNUSED(args);
-    
-    // General runner configuration
-    setObjectName(QLatin1String("KonohaZku"));
-    setHasRunOptions(true);
-    setIgnoredTypes(Plasma::RunnerContext::Directory |
-                    Plasma::RunnerContext::File |
-                    Plasma::RunnerContext::NetworkLocation);
-    setSpeed(AbstractRunner::NormalSpeed);
-    setPriority(HighestPriority);
-    setDefaultSyntax(
-        Plasma::RunnerSyntax(
-            QString::fromLatin1(":q:"),
-            i18n("Sends :q: query to Zku, and retrieves data.")
-        )
-    );
+  Q_UNUSED(args);
+
+  // General runner configuration
+  setObjectName(QLatin1String("KonohaZku"));
+  setHasRunOptions(true);
+  setIgnoredTypes(Plasma::RunnerContext::Directory |
+      Plasma::RunnerContext::File |
+      Plasma::RunnerContext::NetworkLocation);
+  setSpeed(AbstractRunner::NormalSpeed);
+  setPriority(HighestPriority);
+  setDefaultSyntax(
+      Plasma::RunnerSyntax(
+          QString::fromLatin1(":q:"),
+          i18n("Sends :q: query to Zku, and retrieves data.")
+      )
+  );
 }
 
-KonohaZku::~KonohaZku() {}
+KonohaZku::~KonohaZku()
+{}
 
 void KonohaZku::match(Plasma::RunnerContext &context)
 {
-    if (!context.isValid()) return;
+  if (!context.isValid()) return;
 
-    const QString enteredKey = context.query();
-    
-    QList<Plasma::QueryMatch> matches;
+  const QString enteredKey = context.query();
+  QByteArray tempString;
+  tempString.append(enteredKey);
 
-    // Sends enteredKey to Zku
+  int client_socket;
+  struct sockaddr_in server_addr;
 
-    // Found a key
-    // Plasma::QueryMatch match(this);
+  char buff[BUFF_SIZE+5];
+  client_socket = socket(PF_INET, SOCK_STREAM, 0);
+  if ( client_socket == -1 )
+    return;
 
-    // match.setType(Plasma::QueryMatch::ExactMatch);
-    // match.setData("zku");
-    // match.setText(it.value());
-    // match.setSubtext("[" + foundKey + "]");
-    // match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+  memset(&server_addr, 0, sizeof(server_addr));
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(4000);
+  server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    // matches.append(match);
+  if ( connect(client_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)))
+    return;
 
-    Plasma::QueryMatch match(this);
-    match.setType(Plasma::QueryMatch::ExactMatch);
-    match.setData("zku");
-    match.setText("This is test response from Zku");
-    match.setSubtext("This is original input: " + enteredKey);
-    match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+  write(client_socket, tempString.data(), strlen(tempString.data()+1));
+  read(client_socket, buff, BUFF_SIZE);
 
-    matches.append(match);
+  QList <Plasma::QueryMatch> matches;
 
-    // Feed the framework with the calculated results
-    context.addMatches(matches);
+  Plasma::QueryMatch match(this);
+  match.setType(Plasma::QueryMatch::ExactMatch);
+  match.setData("zku");
+  match.setText(buff);
+  match.setSubtext(tempString.data());
+  match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+
+  matches.append(match);
+
+  // Feed the framework with the calculated results
+  context.addMatches(matches);
 }
 
 /**
@@ -75,27 +91,24 @@ void KonohaZku::match(Plasma::RunnerContext &context)
  */
 void KonohaZku::run(const Plasma::RunnerContext &context, const Plasma::QueryMatch &match)
 {
-    Q_UNUSED(context);
+  Q_UNUSED(context);
 
-    if (match.data().toString().compare("open") == 0)
-    {
-        // Open a file or a URL in a (file/web) browser
-        // (in a new process, so that krunner doesn't get stuck while opening the path)
-        string command = "kde-open " + match.text().remove("→ ").toStdString() + " &";
-        system(command.c_str());
-        
-    } else if (match.data().toString().compare("execute") == 0) 
-    {
-        // Execute a command
-        // (in a new process, so that krunner doesn't get stuck while opening the path)
-        string command = match.text().remove(">_ ").toStdString() + " &";
-        system(command.c_str());
-        
-    } else 
-    {
-        // Copy the result to clipboard
-        QApplication::clipboard()->setText(match.text());
-    }
+  if (match.data().toString().compare("open") == 0) {
+    // Open a file or a URL in a (file/web) browser
+    // (in a new process, so that krunner doesn't get stuck while opening the path)
+    string command = "kde-open " + match.text().remove("→ ").toStdString() + " &";
+    system(command.c_str());
+
+  } else if (match.data().toString().compare("execute") == 0) {
+    // Execute a command
+    // (in a new process, so that krunner doesn't get stuck while opening the path)
+    string command = match.text().remove(">_ ").toStdString() + " &";
+    system(command.c_str());
+
+  } else {
+    // Copy the result to clipboard
+    QApplication::clipboard()->setText(match.text());
+  }
 }
 
 
