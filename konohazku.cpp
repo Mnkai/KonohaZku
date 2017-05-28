@@ -5,16 +5,33 @@
 #include <QApplication>
 #include <QClipboard>
 
-#include <unistd.h>
-#include <arpa/inet.h>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/algorithm/string.hpp>
+
+#include <iostream>
+#include <QtCore/QtCore>
 
 #include "konohazku.h"
 
-#define BUFF_SIZE 1024
 #define MAIN_PORT 3329
 #define BACKUP_PORT 5829
 
 using namespace std;
+using namespace boost::asio;
+
+io_service ioservice;
+ip::tcp::socket tcp_socket{ioservice};
+array<char, 4096> bytes;
+
+string sendString;
+string recvString;
+
+void boost::throw_exception(std::exception const& exception)
+{
+    // TODO: Do exception handling
+}
 
 KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
         : Plasma::AbstractRunner(parent, args) {
@@ -26,7 +43,7 @@ KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
     setIgnoredTypes(Plasma::RunnerContext::Directory |
                     Plasma::RunnerContext::File |
                     Plasma::RunnerContext::NetworkLocation);
-    setSpeed(AbstractRunner::NormalSpeed);
+    setSpeed(Plasma::AbstractRunner::NormalSpeed);
     setPriority(HighestPriority);
     setDefaultSyntax(
             Plasma::RunnerSyntax(
@@ -41,58 +58,57 @@ KonohaZku::~KonohaZku() {}
 void KonohaZku::match(Plasma::RunnerContext &context) {
     if (!context.isValid()) return;
 
-    const QString enteredKey = context.query();
-    QByteArray tempString;
-    tempString.append(enteredKey);
-
-    int client_socket;
-    struct sockaddr_in server_addr;
-
-    char buff[BUFF_SIZE + 5];
-    client_socket = socket(PF_INET, SOCK_STREAM, 0);
-    if (client_socket == -1)
-        return;
-
-    struct timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeout, sizeof(timeout));
-
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(MAIN_PORT);
-    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    // TODO: Non blocking connect on both ports
-    if (::connect(client_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
-        // Retry connecting on backup port...
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(BACKUP_PORT);
-        server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-        if (::connect(client_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) == -1) {
-            // Give up
-            return;
-        }
+    // Cancel if there is any ongoing request
+    if (tcp_socket.is_open())
+    {
+        tcp_socket.close();
     }
 
-    write(client_socket, tempString.data(), strlen(tempString.data()) + 1);
-    read(client_socket, buff, BUFF_SIZE);
+    const QString enteredKey = context.query();
+    sendString = enteredKey.toStdString();
+    recvString = string("");
 
-    QList<Plasma::QueryMatch> matches;
+    ip::tcp::endpoint server_endpoint (ip::address::from_string("127.0.0.1"), MAIN_PORT);
+    boost::system::error_code ec;
+    tcp_socket.connect(server_endpoint, ec);
+    if ( ec ) { return; }
+    write(tcp_socket, buffer(sendString));
+    do
+    {
+        tcp_socket.read_some(buffer(bytes), ec);
+        recvString.append(bytes.data());
+    } while ( !ec );
+
+    // Process response
+    vector<std::string> responseVector;
+    boost::split(responseVector, recvString, boost::is_any_of("\n"));
+
+    string actualContent;
+    for (int i=0; i<responseVector.size(); i++)
+    {
+        if ( boost::starts_with(responseVector[i], "response") )
+        {
+            string::size_type equalPosition = responseVector[i].find("=", 0);
+            if ( equalPosition == string::npos )
+            {
+                // Cannot do anything
+                return;
+            }
+            actualContent = responseVector[i].substr(equalPosition, responseVector[i].size());
+
+        }
+    }
 
     Plasma::QueryMatch match(this);
     match.setType(Plasma::QueryMatch::ExactMatch);
     match.setData("zku");
-    match.setText(buff);
+    match.setText(actualContent.data());
+    match.setSubtext(sendString.data());
     match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
 
-    matches.append(match);
+    context.addMatch(match);
 
-    close(client_socket);
-    // Feed the framework with the calculated results
-    context.addMatches(matches);
+    tcp_socket.close();
 }
 
 /**
