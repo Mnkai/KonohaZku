@@ -22,19 +22,18 @@ using namespace std;
 using namespace boost::asio;
 
 io_service ioservice;
-ip::tcp::socket tcp_socket{ioservice};
+ip::tcp::socket tcp_socket {ioservice};
 array<char, 4096> bytes;
 
 string sendString;
 string recvString;
 
-void boost::throw_exception(std::exception const& exception)
-{
+void boost::throw_exception(std::exception const &exception) {
     // TODO: Do exception handling
 }
 
 KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
-        : Plasma::AbstractRunner(parent, args) {
+    : Plasma::AbstractRunner(parent, args) {
     Q_UNUSED(args);
 
     // General runner configuration
@@ -46,21 +45,22 @@ KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
     setSpeed(Plasma::AbstractRunner::NormalSpeed);
     setPriority(HighestPriority);
     setDefaultSyntax(
-            Plasma::RunnerSyntax(
-                    QString::fromLatin1(":q:"),
-                    i18n("Sends :q: query to Zku, and retrieves data.")
-            )
+        Plasma::RunnerSyntax(
+            QString::fromLatin1(":q:"),
+            i18n("Sends :q: query to Zku, and retrieves data.")
+        )
     );
 }
 
-KonohaZku::~KonohaZku() {}
+KonohaZku::~KonohaZku() {
+}
 
 void KonohaZku::match(Plasma::RunnerContext &context) {
-    if (!context.isValid()) return;
+    if (!context.isValid())
+        return;
 
     // Cancel if there is any ongoing request
-    if (tcp_socket.is_open())
-    {
+    if (tcp_socket.is_open()) {
         tcp_socket.close();
     }
 
@@ -68,10 +68,12 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     sendString = enteredKey.toStdString();
     recvString = string("");
 
-    ip::tcp::endpoint server_endpoint (ip::address::from_string("127.0.0.1"), MAIN_PORT);
+    ip::tcp::endpoint server_endpoint(ip::address::from_string("127.0.0.1"), MAIN_PORT);
     boost::system::error_code ec;
     tcp_socket.connect(server_endpoint, ec);
-    if ( ec ) { return; }
+    if (ec) {
+        return;
+    }
     write(tcp_socket, buffer(sendString));
 
     tcp_socket.receive(buffer(bytes));
@@ -80,32 +82,26 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     // Process response
     vector<std::string> responseVector;
     boost::split(responseVector, recvString, boost::is_any_of("\n"));
-    std::string sender ("");
+    std::string sender("");
 
-    for (int i=0; i<responseVector.size(); i++)
-    {
-        if ( boost::starts_with(responseVector[i], "sender") )
-        {
+    for (int i = 0; i < responseVector.size(); i++) {
+        if (boost::starts_with(responseVector[i], "sender")) {
             string::size_type equalPosition = responseVector[i].find("=", 0);
-            if ( equalPosition == string::npos )
-            {
+            if (equalPosition == string::npos) {
                 // Cannot do anything
                 return;
             }
-            sender = responseVector[i].substr(equalPosition+1, string::npos);
+            sender = responseVector[i].substr(equalPosition + 1, string::npos);
         }
-        else if ( boost::starts_with(responseVector[i], "response") )
-        {
+        else if (boost::starts_with(responseVector[i], "response")) {
             string::size_type equalPosition = responseVector[i].find("=", 0);
-            if ( equalPosition == string::npos )
-            {
+            if (equalPosition == string::npos) {
                 // Cannot do anything
                 return;
             }
-            std::string actualContent = responseVector[i].substr(equalPosition+1, string::npos);
+            std::string actualContent = responseVector[i].substr(equalPosition + 1, string::npos);
             string::size_type colonPosition = actualContent.find(":", 0);
-            if ( colonPosition == string::npos )
-            {
+            if (colonPosition == string::npos) {
                 // No numbering in response, possible old response protocol? (<=ZSMP 0.4)
                 Plasma::QueryMatch match(this);
                 match.setType(Plasma::QueryMatch::ExactMatch);
@@ -116,8 +112,7 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
 
                 context.addMatch(match);
             }
-            else
-            {
+            else {
                 std::string responseNumber = actualContent.substr(0, colonPosition);
 
                 Plasma::QueryMatch match(this);
@@ -149,14 +144,14 @@ void KonohaZku::run(const Plasma::RunnerContext &context, const Plasma::QueryMat
         // (in a new process, so that krunner doesn't get stuck while opening the path)
         string command = "kde-open " + match.text().remove("→ ").toStdString() + " &";
         system(command.c_str());
-
-    } else if (match.data().toString().compare("execute") == 0) {
+    }
+    else if (match.data().toString().compare("execute") == 0) {
         // Execute a command
         // (in a new process, so that krunner doesn't get stuck while opening the path)
         string command = match.text().remove(">_ ").toStdString() + " &";
         system(command.c_str());
-
-    } else {
+    }
+    else {
         // Copy the result to clipboard
         QApplication::clipboard()->setText(match.text());
     }
