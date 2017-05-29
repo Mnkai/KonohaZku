@@ -13,7 +13,7 @@
 #include <iostream>
 #include <QtCore/QtCore>
 
-#include "konohazku.h"
+#include "konohazku.hpp"
 
 #define MAIN_PORT 3329
 #define BACKUP_PORT 5829
