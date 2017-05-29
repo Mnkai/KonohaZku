@@ -73,19 +73,17 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     tcp_socket.connect(server_endpoint, ec);
     if ( ec ) { return; }
     write(tcp_socket, buffer(sendString));
-    do
-    {
-        tcp_socket.read_some(buffer(bytes), ec);
-        recvString.append(bytes.data());
-    } while ( !ec );
+
+    tcp_socket.receive(buffer(bytes));
+    recvString.append(bytes.data());
 
     // Process response
     vector<std::string> responseVector;
     boost::split(responseVector, recvString, boost::is_any_of("\n"));
+    std::string sender ("");
 
     for (int i=0; i<responseVector.size(); i++)
     {
-        std::string sender ("");
         if ( boost::starts_with(responseVector[i], "sender") )
         {
             string::size_type equalPosition = responseVector[i].find("=", 0);
