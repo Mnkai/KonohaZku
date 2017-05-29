@@ -83,10 +83,10 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     vector<std::string> responseVector;
     boost::split(responseVector, recvString, boost::is_any_of("\n"));
 
-    string actualContent;
     for (int i=0; i<responseVector.size(); i++)
     {
-        if ( boost::starts_with(responseVector[i], "response") )
+        std::string sender ("");
+        if ( boost::starts_with(responseVector[i], "sender") )
         {
             string::size_type equalPosition = responseVector[i].find("=", 0);
             if ( equalPosition == string::npos )
@@ -94,19 +94,46 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
                 // Cannot do anything
                 return;
             }
-            actualContent = responseVector[i].substr(equalPosition, responseVector[i].size());
+            sender = responseVector[i].substr(equalPosition+1, string::npos);
+        }
+        else if ( boost::starts_with(responseVector[i], "response") )
+        {
+            string::size_type equalPosition = responseVector[i].find("=", 0);
+            if ( equalPosition == string::npos )
+            {
+                // Cannot do anything
+                return;
+            }
+            std::string actualContent = responseVector[i].substr(equalPosition+1, string::npos);
+            string::size_type colonPosition = actualContent.find(":", 0);
+            if ( colonPosition == string::npos )
+            {
+                // No numbering in response, possible old response protocol? (<=ZSMP 0.4)
+                Plasma::QueryMatch match(this);
+                match.setType(Plasma::QueryMatch::ExactMatch);
+                match.setData("zku");
+                match.setText(actualContent.data());
+                match.setSubtext(sender.data());
+                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
 
+                context.addMatch(match);
+            }
+            else
+            {
+                std::string responseNumber = actualContent.substr(0, colonPosition);
+
+                Plasma::QueryMatch match(this);
+                match.setType(Plasma::QueryMatch::ExactMatch);
+                match.setData("zku");
+                match.setText(actualContent.data());
+                match.setSubtext(sender.append(":").append(responseNumber).data());
+                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+
+                context.addMatch(match);
+            }
         }
     }
 
-    Plasma::QueryMatch match(this);
-    match.setType(Plasma::QueryMatch::ExactMatch);
-    match.setData("zku");
-    match.setText(actualContent.data());
-    match.setSubtext(sendString.data());
-    match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
-
-    context.addMatch(match);
 
     tcp_socket.close();
 }
