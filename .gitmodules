@@ -1,0 +1,3 @@
+[submodule "zkutils"]
+	path = zkutils
+	url = git@github.com:minacle/zkutils
