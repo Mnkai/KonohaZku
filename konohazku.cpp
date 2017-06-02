@@ -5,31 +5,76 @@
 #include <QApplication>
 #include <QClipboard>
 
-#include <boost/asio/io_service.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/write.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include <iostream>
 #include <QtCore/QtCore>
 
 #include "konohazku.hpp"
-
-#define MAIN_PORT 3329
-#define BACKUP_PORT 5829
+#include <zkutils/include/zku/zmsg.h>
+#include "zkutils/include/zku/zsmp/guest.h"
 
 using namespace std;
-using namespace boost::asio;
 
-io_service ioservice;
-ip::tcp::socket tcp_socket {ioservice};
-array<char, 4096> bytes;
-
-string sendString;
-string recvString;
+KonohaZku *application;
+Plasma::RunnerContext gContext;
 
 void boost::throw_exception(std::exception const &exception) {
     // TODO: Do exception handling
+}
+
+void receiveZmsgCallback(const zmsg_t *input) {
+    string recvString((*input).msg);
+
+    // Process response
+    vector<std::string> responseVector;
+    boost::split(responseVector, recvString, boost::is_any_of("\n"));
+    std::string sender("");
+
+    for (int i = 0; i < responseVector.size(); i++) {
+        if (boost::starts_with(responseVector[i], "sender")) {
+            string::size_type equalPosition = responseVector[i].find("=", 0);
+            if (equalPosition == string::npos) {
+                // Cannot do anything
+                return;
+            }
+            sender = responseVector[i].substr(equalPosition + 1, string::npos);
+        }
+        else if (boost::starts_with(responseVector[i], "response")) {
+            string::size_type equalPosition = responseVector[i].find("=", 0);
+            if (equalPosition == string::npos) {
+                // Cannot do anything
+                return;
+            }
+            std::string actualContent = responseVector[i].substr(equalPosition + 1, string::npos);
+            string::size_type colonPosition = actualContent.find(":", 0);
+            if (colonPosition == string::npos) {
+                // No numbering in response, possible old response protocol? (<=ZSMP 0.4)
+                Plasma::QueryMatch match(application);
+                match.setType(Plasma::QueryMatch::ExactMatch);
+                match.setData("zku");
+                match.setText(actualContent.data());
+                match.setSubtext(sender.data());
+                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+
+                gContext.addMatch(match);
+            }
+            else {
+                std::string responseNumber = actualContent.substr(0, colonPosition);
+
+                Plasma::QueryMatch match(application);
+                match.setType(Plasma::QueryMatch::ExactMatch);
+                match.setData("zku");
+                match.setText(actualContent.data());
+                match.setSubtext(sender.append(":").append(responseNumber).data());
+                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
+
+                gContext.addMatch(match);
+            }
+        }
+    }
+
+    zku::zsmp_guest_end();
 }
 
 KonohaZku::KonohaZku(QObject *parent, const QVariantList &args)
@@ -59,76 +104,24 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     if (!context.isValid())
         return;
 
-    // Cancel if there is any ongoing request
-    if (tcp_socket.is_open()) {
-        tcp_socket.close();
-    }
+    application = this;
+    gContext = context;
+    string sendString;
+
+    zku::zsmp_guest_start("KonohaZku v0.1");
 
     const QString enteredKey = context.query();
     sendString = enteredKey.toStdString();
-    recvString = string("");
 
-    ip::tcp::endpoint server_endpoint(ip::address::from_string("127.0.0.1"), MAIN_PORT);
-    boost::system::error_code ec;
-    tcp_socket.connect(server_endpoint, ec);
-    if (ec) {
+    if (!zku::zsmp_guest_running())
         return;
-    }
-    write(tcp_socket, buffer(sendString));
 
-    tcp_socket.receive(buffer(bytes));
-    recvString.append(bytes.data());
+    zmsg_t *sendZmsg = zku::zmsg_alloc();
+    zku::zmsg_initwithcstr(sendZmsg, sendString.data());
 
-    // Process response
-    vector<std::string> responseVector;
-    boost::split(responseVector, recvString, boost::is_any_of("\n"));
-    std::string sender("");
+    zku::zsmp_guest_setcallback(receiveZmsgCallback);
 
-    for (int i = 0; i < responseVector.size(); i++) {
-        if (boost::starts_with(responseVector[i], "sender")) {
-            string::size_type equalPosition = responseVector[i].find("=", 0);
-            if (equalPosition == string::npos) {
-                // Cannot do anything
-                return;
-            }
-            sender = responseVector[i].substr(equalPosition + 1, string::npos);
-        }
-        else if (boost::starts_with(responseVector[i], "response")) {
-            string::size_type equalPosition = responseVector[i].find("=", 0);
-            if (equalPosition == string::npos) {
-                // Cannot do anything
-                return;
-            }
-            std::string actualContent = responseVector[i].substr(equalPosition + 1, string::npos);
-            string::size_type colonPosition = actualContent.find(":", 0);
-            if (colonPosition == string::npos) {
-                // No numbering in response, possible old response protocol? (<=ZSMP 0.4)
-                Plasma::QueryMatch match(this);
-                match.setType(Plasma::QueryMatch::ExactMatch);
-                match.setData("zku");
-                match.setText(actualContent.data());
-                match.setSubtext(sender.data());
-                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
-
-                context.addMatch(match);
-            }
-            else {
-                std::string responseNumber = actualContent.substr(0, colonPosition);
-
-                Plasma::QueryMatch match(this);
-                match.setType(Plasma::QueryMatch::ExactMatch);
-                match.setData("zku");
-                match.setText(actualContent.data());
-                match.setSubtext(sender.append(":").append(responseNumber).data());
-                match.setIcon(QIcon::fromTheme("preferences-desktop-font"));
-
-                context.addMatch(match);
-            }
-        }
-    }
-
-
-    tcp_socket.close();
+    zku::zsmp_guest_pushzmsg(sendZmsg);
 }
 
 /**
