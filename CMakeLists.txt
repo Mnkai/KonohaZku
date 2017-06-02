@@ -22,14 +22,17 @@ include(KDEInstallDirs)
 include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
+ADD_SUBDIRECTORY(zkutils)
+
 set(krunner_konohazku_SRCS konohazku.cpp )
 
 add_library(krunner_konohazku MODULE ${krunner_konohazku_SRCS})
 target_link_libraries(krunner_konohazku KF5::Runner Qt5::Widgets
-        KF5::I18n
-        KF5::Service
-        KF5::Plasma
-        ${Boost_LIBRARIES})
+                      KF5::I18n
+                      KF5::Service
+                      KF5::Plasma
+                      ${Boost_LIBRARIES}
+                      zkutils)
                       
 install(TARGETS krunner_konohazku DESTINATION ${PLUGIN_INSTALL_DIR})
 install(FILES plasma-runner-konohazku.desktop DESTINATION ${SERVICES_INSTALL_DIR})
