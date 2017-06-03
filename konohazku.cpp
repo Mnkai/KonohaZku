@@ -1,18 +1,4 @@
-#include <KLocalizedString>
-#include <KConfigCore/KConfig>
-#include <KConfigCore/KConfigGroup>
-
-#include <QApplication>
-#include <QClipboard>
-
-#include <boost/algorithm/string.hpp>
-
-#include <iostream>
-#include <QtCore/QtCore>
-
 #include "konohazku.hpp"
-#include <zkutils/include/zku/zmsg.h>
-#include "zkutils/include/zku/zsmp/guest.h"
 
 using namespace std;
 
@@ -108,7 +94,10 @@ void KonohaZku::match(Plasma::RunnerContext &context) {
     gContext = context;
     string sendString;
 
-    zku::zsmp_guest_start("KonohaZku v0.1");
+    string ident("KonohaZku#");
+    ident.append(to_string((int)getpid()));
+
+    zku::zsmp_guest_start(ident.data());
 
     const QString enteredKey = context.query();
     sendString = enteredKey.toStdString();

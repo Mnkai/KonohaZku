@@ -1,6 +1,21 @@
 #ifndef SYMBOLS_H
 #define SYMBOLS_H
 
+#include <KLocalizedString>
+#include <KConfigCore/KConfig>
+#include <KConfigCore/KConfigGroup>
+
+#include <QApplication>
+#include <QClipboard>
+
+#include <boost/algorithm/string.hpp>
+
+#include <iostream>
+#include <QtCore/QtCore>
+
+#include <zkutils/include/zku/zmsg.h>
+#include "zkutils/include/zku/zsmp/guest.h"
+
 #include <KRunner/AbstractRunner>
 
 class KonohaZku : public Plasma::AbstractRunner
